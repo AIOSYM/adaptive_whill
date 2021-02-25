@@ -5,6 +5,7 @@ detector/YOLOv3/weight/yolov3.weights
 __pycache__/
 *.py[cod]
 *$py.class
+.vscode
 
 # C extensions
 *.so
