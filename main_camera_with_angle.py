@@ -13,6 +13,7 @@ import numpy as np
 import pyrealsense2 as rs
 
 from detector.YOLOv3.detector import yolo_output, Darknet
+from tracker.opencv.tracker import get_tracker
 from utils.util import points_perspective_transform, get_average_distance, get_coordinates, get_controls, stop_controls
 
 ## Initialize new parameters
@@ -30,7 +31,6 @@ new_size = (720, 480)
 H = np.array([[ 2.66835209e+00/1.3, -3.79148708e-02, -0.19699952e+03],
  [ 4.78788512e-01,  2.14900022e+00/1.3, -4.31157942e+02],
  [ 1.22350798e-03, -3.96466173e-05,  1.00000000e+00]])
-
 
 ## Parameters for control
 STOP_THRESHOLD = .2
@@ -71,19 +71,16 @@ if CUDA:
     model.cuda()
 model.eval()
 
-## Tracking Algorithm
-IS_TRACKING = False 
-ALGO_KEY = 'kcf'
+## Tracking Configuration
+with open('configs/opencv-tracker.yaml') as f:
+    try:
+        config = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        print(e)
+        sys.exit()
 
-OPENCV_OBJECT_TRACKERS = {
-	"csrt": cv2.TrackerCSRT_create,
-	"kcf": cv2.TrackerKCF_create,
-	"boosting": cv2.TrackerBoosting_create,
-	"mil": cv2.TrackerMIL_create,
-	"tld": cv2.TrackerTLD_create,
-	"medianflow": cv2.TrackerMedianFlow_create,
-	"mosse": cv2.TrackerMOSSE_create
-}
+IS_TRACKING = False 
+tracker_object = get_tracker(config['TRACKER_KEY'])
 
 ## Range of detection 
 min_range = 0 
@@ -93,10 +90,7 @@ max_range = 2
 rospy.init_node('detector', anonymous=True)
 
 ## Publish to real wheelchair
-#pub = rospy.Publisher('/whill/controller/cmd_vel', Twist, queue_size=10)
-
-## Publish to simulation 
-pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+pub = rospy.Publisher('/whill/controller/cmd_vel', Twist, queue_size=10)
 
 ## Runing Loop
 pub_rgb = rospy.Publisher("/output/image_raw/compressed_rgb", CompressedImage, queue_size=1)
@@ -144,7 +138,7 @@ while True:
             ## Create new tracker
             initBB, trueBB = get_coordinates(person_in_range_bbox, x, y, x+w, y+h)
             print(f'initBB:{initBB}, trueBB:{trueBB}')
-            tracker = OPENCV_OBJECT_TRACKERS[ALGO_KEY]()
+            tracker = tracker_object()
             tracker.init(rgb_img, initBB)
             print('new tracker')
         
