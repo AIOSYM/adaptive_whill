@@ -5,11 +5,12 @@ from std_msgs.msg import Int32
 from sensor_msgs.msg import CompressedImage
 from geometry_msgs.msg import Twist
 
+import sys
 import cv2 
 import torch
+import yaml 
 import numpy as np
 import pyrealsense2 as rs
-
 
 from detector.YOLOv3.detector import yolo_output, Darknet
 from utils.util import points_perspective_transform, get_average_distance, get_coordinates, get_controls, stop_controls
@@ -46,14 +47,19 @@ profile = pipeline.start(config)
 ## Create an align object 
 align = rs.align(rs.stream.color)
 
-## Set configuration 
-confidence = 0.8
-nms_thesh = 0.4
+## YOLO Configuration 
+with open('configs/yolov3.yaml') as f:
+    try:
+        config = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        print(e)
+        sys.exit()
 
-## YOLO Model 
-cfgfile = "./detector/YOLOv3/cfg/yolov3.cfg"
-weightsfile = "./detector/YOLOv3/weight/yolov3.weights"
-data = "./detector/YOLOv3/data/coco.names"
+cfgfile = config['CFG']
+weightsfile = config['WEIGHT']
+data = config['CLASS_NAMES']
+confidence = config['SCORE_THRESH']
+nms_thesh = config['NMS_THRESH']
 model = Darknet(cfgfile)
 model.load_weights(weightsfile)
 model.net_info["height"] = 160
