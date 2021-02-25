@@ -27,7 +27,7 @@ d_error_a = 0
 
 new_size = (720, 480)
 
-## Homography Metrix
+## Homography Metrix (for correct image with around 30 degrees angle)
 H = np.array([[ 2.66835209e+00/1.3, -3.79148708e-02, -0.19699952e+03],
  [ 4.78788512e-01,  2.14900022e+00/1.3, -4.31157942e+02],
  [ 1.22350798e-03, -3.96466173e-05,  1.00000000e+00]])
@@ -71,6 +71,10 @@ if CUDA:
     model.cuda()
 model.eval()
 
+## Range of detection 
+min_range = 0  # (m)
+max_range = 2  # (m)
+
 ## Tracking Configuration
 with open('configs/opencv-tracker.yaml') as f:
     try:
@@ -82,20 +86,17 @@ with open('configs/opencv-tracker.yaml') as f:
 IS_TRACKING = False 
 tracker_object = get_tracker(config['TRACKER_KEY'])
 
-## Range of detection 
-min_range = 0 
-max_range = 2
-
 ## Create new ROS node to publish /cmd_vel
 rospy.init_node('detector', anonymous=True)
 
-## Publish to real wheelchair
+## Node that publish to controller
 pub = rospy.Publisher('/whill/controller/cmd_vel', Twist, queue_size=10)
 
-## Runing Loop
+## Node that publish rgb image
 pub_rgb = rospy.Publisher("/output/image_raw/compressed_rgb", CompressedImage, queue_size=1)
 msg_rgb = CompressedImage()
 
+## Runing Loop
 while True:
     try:
         ## Update frame id 
@@ -129,6 +130,7 @@ while True:
             # Filter the person to follow based on distance
             person_in_range_bbox = []
             for i in bbox:
+                # i is a coordinate of bbox which in (x1, y1, x2, y2) format
                 cv2.rectangle(yolo_frame, (i[0], i[1]), (i[2], i[3]),(0, 255, 0), 2)
                 curr_dist = get_average_distance(depth_frame, i)
                 print('Distance:', curr_dist)
@@ -159,8 +161,7 @@ while True:
             if x < 0 or y < 0:
                 twist = stop_controls()
             else:
-                calc_x, calc_z = (xt+wt/2), depth_frame.get_distance(x+w//2, y+h//2)
-                
+                calc_x, calc_z = (xt+wt/2), get_average_distance(depth_frame, (x,y, x+w, y+h))
                 twist, error = get_controls(calc_x, calc_z, 1/3, 0, 0.2,-1/500, 0, 0, i_error_l, i_error_a, d_error_l, d_error_a)
                 print(f'linear x: {twist.linear.x}, angular z: {twist.angular.z}')
                 

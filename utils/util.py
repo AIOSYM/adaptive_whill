@@ -82,7 +82,6 @@ def get_controls(x, z, Kp_l, Ki_l, Kd_l, Kp_a, Ki_a, Kd_a, il, ia, dl, da):
     twist.angular.y = 0
     twist.angular.z = angular
     
-    print('linear: {} ,angular: {}  \n'.format(linear,angular))
     error = (i_error_l, i_error_a, d_error_l, d_error_a)
 
     return twist, error
