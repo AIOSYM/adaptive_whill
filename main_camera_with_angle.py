@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 import rospy
-from std_msgs.msg import String
-from std_msgs.msg import Int32
 from sensor_msgs.msg import CompressedImage
 from geometry_msgs.msg import Twist
 
@@ -11,7 +9,8 @@ import numpy as np
 from sensor.realsense.setup import get_camera_configuration
 from detector.YOLOv3.detector import get_detector_configuration, yolo_output
 from tracker.opencv.tracker import get_tracker_configuration
-from utils.util import points_perspective_transform, get_average_distance, get_coordinates, get_controls, stop_controls, filter_bbox_based_on_distance
+from controller.pid_controller import get_controls, stop_controls
+from utils.util import points_perspective_transform, get_average_distance, get_coordinates, filter_bbox_based_on_distance
 
 ## ----------------------------------
 # Initialize new parameters
