@@ -14,7 +14,7 @@ import pyrealsense2 as rs
 
 from detector.YOLOv3.detector import yolo_output, Darknet
 from tracker.opencv.tracker import get_tracker
-from utils.util import points_perspective_transform, get_average_distance, get_coordinates, get_controls, stop_controls
+from utils.util import points_perspective_transform, get_average_distance, get_coordinates, get_controls, stop_controls, filter_bbox_based_on_distance
 
 ## Initialize new parameters
 x,y,w,h = 0,0,0,0
@@ -87,7 +87,7 @@ IS_TRACKING = False
 tracker_object = get_tracker(config['TRACKER_KEY'])
 
 ## Create new ROS node to publish /cmd_vel
-rospy.init_node('detector', anonymous=True)
+rospy.init_node('adaptive')
 
 ## Node that publish to controller
 pub = rospy.Publisher('/whill/controller/cmd_vel', Twist, queue_size=10)
@@ -123,26 +123,18 @@ while True:
         if FRAME_ID%REFRESH_INTERVAL == 0 or not IS_TRACKING:
             
             ## YOLO: Detect person to follow 
-            print("NEW DETECTION")
+            print('NEW DETECTION')
             yolo_frame = rgb_img.copy()
             img, bbox = yolo_output(yolo_frame, model, data, ['person'], confidence, nms_thesh, CUDA, inp_dim)
 
             # Filter the person to follow based on distance
-            person_in_range_bbox = []
-            for i in bbox:
-                # i is a coordinate of bbox which in (x1, y1, x2, y2) format
-                cv2.rectangle(yolo_frame, (i[0], i[1]), (i[2], i[3]),(0, 255, 0), 2)
-                curr_dist = get_average_distance(depth_frame, i)
-                print('Distance:', curr_dist)
-                if min_range < curr_dist < max_range:
-                    person_in_range_bbox.append(i)
-
+            person_in_range_bbox = filter_bbox_based_on_distance(bbox, depth_frame, min_range, max_range)
+            
             ## Create new tracker
+            print('NEW TRACKER')
             initBB, trueBB = get_coordinates(person_in_range_bbox, x, y, x+w, y+h)
-            print(f'initBB:{initBB}, trueBB:{trueBB}')
             tracker = tracker_object()
             tracker.init(rgb_img, initBB)
-            print('new tracker')
         
         (IS_TRACKING, box) = tracker.update(rgb_img)
         
@@ -176,7 +168,7 @@ while True:
         rgb_warp = cv2.resize(rgb_warp, new_size, interpolation=cv2.INTER_AREA)
         cv2.imshow('Wrap_FRAME', cv2.cvtColor(rgb_warp, cv2.COLOR_RGB2BGR))
         yolo_frame = cv2.resize(yolo_frame, new_size, interpolation=cv2.INTER_AREA)
-        #cv2.imshow('YOLO_FRAME', cv2.cvtColor(yolo_frame, cv2.COLOR_RGB2BGR))
+        cv2.imshow('YOLO_FRAME', cv2.cvtColor(yolo_frame, cv2.COLOR_RGB2BGR))
 
         #### Create CompressedImage ####   
         msg_rgb.header.stamp = rospy.Time.now()
@@ -207,7 +199,6 @@ while True:
         print("PUBLISHING...")
         pub.publish(twist)
         
-
 pipeline.stop()
 cv2.destroyAllWindows()
 exit(0)
