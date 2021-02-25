@@ -112,6 +112,15 @@ def get_coordinates(box, x, y, x1, y1):
 
     return initBB, (x,y,x+w,y+h)
 
+def filter_bbox_based_on_distance(bbox, depth_frame, min_range, max_range):
+    person_in_range_bbox = []
+    for box in bbox:
+        curr_dist = get_average_distance(depth_frame, box)
+        print('Distance:', curr_dist)
+        if min_range < curr_dist < max_range:
+            person_in_range_bbox.append(box)
+    return person_in_range_bbox
+
 def get_iou(boxA, boxB):
 	""" Find iou of detection and tracking boxes
 	"""
