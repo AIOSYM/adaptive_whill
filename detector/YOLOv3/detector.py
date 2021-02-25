@@ -1,6 +1,3 @@
-from __future__ import division
-import pyrealsense2 as rs
-
 import time
 import torch
 import torch.nn as nn
@@ -10,9 +7,35 @@ import cv2
 from utils.util import *
 
 from detector.YOLOv3.darknet import Darknet
-import pandas as pd
-import random
-import pickle as pkl
+import yaml
+import sys
+
+def get_detector_configuration(config_file):
+    ## Open config file 
+    with open(config_file) as f:
+        try:
+            config = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            print(e)
+            sys.exit()
+
+    cfgfile = config['CFG']
+    weightsfile = config['WEIGHT']
+    data = config['CLASS_NAMES']
+    confidence = config['SCORE_THRESH']
+    nms_thesh = config['NMS_THRESH']
+    model = Darknet(cfgfile)
+    model.load_weights(weightsfile)
+    model.net_info["height"] = 160
+    inp_dim = int(model.net_info["height"])
+
+    CUDA = torch.cuda.is_available()
+    print("CUDA is: {}".format(CUDA))
+    if CUDA:
+        model.cuda()
+    model.eval()
+
+    return model, data, confidence, nms_thesh, inp_dim, CUDA
 
 def prep_image(img, inp_dim):
     """

@@ -5,94 +5,49 @@ from std_msgs.msg import Int32
 from sensor_msgs.msg import CompressedImage
 from geometry_msgs.msg import Twist
 
-import sys
 import cv2 
-import torch
-import yaml 
 import numpy as np
-import pyrealsense2 as rs
 
-from detector.YOLOv3.detector import yolo_output, Darknet
-from tracker.opencv.tracker import get_tracker
+from sensor.realsense.setup import get_camera_configuration
+from detector.YOLOv3.detector import get_detector_configuration, yolo_output
+from tracker.opencv.tracker import get_tracker_configuration
 from utils.util import points_perspective_transform, get_average_distance, get_coordinates, get_controls, stop_controls, filter_bbox_based_on_distance
 
-## Initialize new parameters
+## ----------------------------------
+# Initialize new parameters
+IS_TRACKING = False
 x,y,w,h = 0,0,0,0
 REFRESH_INTERVAL = 50
+min_range = 0  # (m)
+max_range = 2  # (m)
 FRAME_ID = 0
 i_error_l = 0
 i_error_a = 0
 d_error_l = 0
 d_error_a = 0
-
 new_size = (720, 480)
-
-## Homography Metrix (for correct image with around 30 degrees angle)
+## Homography Metrix (for image correction with around 30 degrees angle)
 H = np.array([[ 2.66835209e+00/1.3, -3.79148708e-02, -0.19699952e+03],
  [ 4.78788512e-01,  2.14900022e+00/1.3, -4.31157942e+02],
  [ 1.22350798e-03, -3.96466173e-05,  1.00000000e+00]])
+## ----------------------------------
 
-## Parameters for control
-STOP_THRESHOLD = .2
+## Setup sensor
+pipeline, align = get_camera_configuration()
 
-## Setup stream 
-pipeline = rs.pipeline()
-config = rs.config()
-config.enable_stream(rs.stream.color, 1280, 720, rs.format.rgb8, 30)
-config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 30)
+## Setup detector
+model, data, confidence, nms_thesh, inp_dim, CUDA = get_detector_configuration('configs/yolov3.yaml')
 
-## Start streaming
-profile = pipeline.start(config)
-
-## Create an align object 
-align = rs.align(rs.stream.color)
-
-## YOLO Configuration 
-with open('configs/yolov3.yaml') as f:
-    try:
-        config = yaml.safe_load(f)
-    except yaml.YAMLError as e:
-        print(e)
-        sys.exit()
-
-cfgfile = config['CFG']
-weightsfile = config['WEIGHT']
-data = config['CLASS_NAMES']
-confidence = config['SCORE_THRESH']
-nms_thesh = config['NMS_THRESH']
-model = Darknet(cfgfile)
-model.load_weights(weightsfile)
-model.net_info["height"] = 160
-inp_dim = int(model.net_info["height"])
-
-CUDA = torch.cuda.is_available()
-print("CUDA is: {}".format(CUDA))
-if CUDA:
-    model.cuda()
-model.eval()
-
-## Range of detection 
-min_range = 0  # (m)
-max_range = 2  # (m)
-
-## Tracking Configuration
-with open('configs/opencv-tracker.yaml') as f:
-    try:
-        config = yaml.safe_load(f)
-    except yaml.YAMLError as e:
-        print(e)
-        sys.exit()
-
-IS_TRACKING = False 
-tracker_object = get_tracker(config['TRACKER_KEY'])
+## Setup tracker
+tracker_object = get_tracker_configuration('configs/opencv-tracker.yaml')
 
 ## Create new ROS node to publish /cmd_vel
 rospy.init_node('adaptive')
 
-## Node that publish to controller
+## Create publisher to publish twist msg
 pub = rospy.Publisher('/whill/controller/cmd_vel', Twist, queue_size=10)
 
-## Node that publish rgb image
+## Create publisher to publish rgb image
 pub_rgb = rospy.Publisher("/output/image_raw/compressed_rgb", CompressedImage, queue_size=1)
 msg_rgb = CompressedImage()
 
@@ -168,7 +123,7 @@ while True:
         rgb_warp = cv2.resize(rgb_warp, new_size, interpolation=cv2.INTER_AREA)
         cv2.imshow('Wrap_FRAME', cv2.cvtColor(rgb_warp, cv2.COLOR_RGB2BGR))
         yolo_frame = cv2.resize(yolo_frame, new_size, interpolation=cv2.INTER_AREA)
-        cv2.imshow('YOLO_FRAME', cv2.cvtColor(yolo_frame, cv2.COLOR_RGB2BGR))
+        #cv2.imshow('YOLO_FRAME', cv2.cvtColor(yolo_frame, cv2.COLOR_RGB2BGR))
 
         #### Create CompressedImage ####   
         msg_rgb.header.stamp = rospy.Time.now()
